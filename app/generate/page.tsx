@@ -15,6 +15,7 @@ import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/components/ui/use-toast'
 import { DevanagariText } from '@/components/DevanagariText'
 import { languages, voiceStyles, voices, mockUser } from '@/lib/mock-data'
+import { apiClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 type Step = 1 | 2 | 3 | 4
@@ -83,31 +84,73 @@ export default function GeneratePage() {
     setIsGenerating(true)
     setGenerationProgress(0)
 
-    // Simulate generation progress
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          return 100
-        }
-        return prev + 10
+    try {
+      const generation = await apiClient.createGeneration({
+        input_text: formData.mantra,
+        language: formData.language,
+        voice_style: formData.voiceStyle,
+        selected_voice: formData.voice,
+        generation_type: 'tts_mantra',
       })
-    }, 300)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const updated = await apiClient.getGeneration(generation.id)
+          const progress = updated.status === 'processing' ? 50 : 
+                          updated.status === 'completed' ? 100 : 
+                          updated.status === 'failed' ? 0 : 10
+          setGenerationProgress(progress)
 
-    clearInterval(interval)
-    setIsGenerating(false)
-    setGenerationProgress(0)
+          if (updated.status === 'completed') {
+            clearInterval(pollInterval)
+            setIsGenerating(false)
+            setGenerationProgress(100)
+            toast({
+              title: 'Generation complete!',
+              description: 'Your devotional content is ready.',
+            })
+            router.push(`/generation/${generation.id}`)
+          } else if (updated.status === 'failed') {
+            clearInterval(pollInterval)
+            setIsGenerating(false)
+            toast({
+              title: 'Generation failed',
+              description: 'Please try again later.',
+              variant: 'destructive',
+            })
+          }
+        } catch (error) {
+          clearInterval(pollInterval)
+          setIsGenerating(false)
+          toast({
+            title: 'Error checking status',
+            description: 'Please refresh the page.',
+            variant: 'destructive',
+          })
+        }
+      }, 2000)
 
-    toast({
-      title: 'Generation complete!',
-      description: 'Your devotional content is ready.',
-    })
-
-    // Navigate to generation details (mock ID)
-    router.push('/generation/1')
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        if (isGenerating) {
+          setIsGenerating(false)
+          toast({
+            title: 'Generation taking longer than expected',
+            description: 'Check your dashboard for updates.',
+          })
+        }
+      }, 300000) // 5 minutes
+    } catch (error: any) {
+      setIsGenerating(false)
+      setGenerationProgress(0)
+      toast({
+        title: 'Generation failed',
+        description: error.message || 'Could not create generation',
+        variant: 'destructive',
+      })
+    }
   }
 
   const selectedLanguage = languages.find((l) => l.value === formData.language)

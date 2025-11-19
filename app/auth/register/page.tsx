@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
+import { apiClient } from '@/lib/api-client'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -36,16 +37,32 @@ export default function RegisterPage() {
     
     setIsLoading(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    toast({
-      title: 'Account created!',
-      description: 'Welcome to DevotionalAI!',
-    })
-    
-    router.push('/dashboard')
-    setIsLoading(false)
+    try {
+      const response = await apiClient.register({
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.name,
+      })
+      
+      // Store tokens
+      localStorage.setItem('access_token', response.access_token)
+      localStorage.setItem('refresh_token', response.refresh_token)
+      
+      toast({
+        title: 'Account created!',
+        description: 'Welcome to DevotionalAI!',
+      })
+      
+      router.push('/dashboard')
+    } catch (error: any) {
+      toast({
+        title: 'Registration failed',
+        description: error.message || 'Could not create account',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

@@ -1,0 +1,2 @@
+# DevotionalAI Backend Application
+

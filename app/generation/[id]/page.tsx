@@ -10,16 +10,61 @@ import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { DevanagariText } from '@/components/DevanagariText'
 import { mockGenerations } from '@/lib/mock-data'
+import { apiClient } from '@/lib/api-client'
 import { formatDistanceToNow } from 'date-fns'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function GenerationDetailsPage({ params }: { params: { id: string } }) {
   const { id } = params
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(120)
+  const [generation, setGeneration] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const generation = mockGenerations.find((g) => g.id === id) || mockGenerations[0]
+  useEffect(() => {
+    const fetchGeneration = async () => {
+      try {
+        const data = await apiClient.getGeneration(parseInt(id))
+        // Transform API response to match frontend format
+        setGeneration({
+          id: data.id.toString(),
+          mantra: data.input_text,
+          language: data.language,
+          voiceStyle: data.voice_style,
+          voice: data.selected_voice,
+          status: data.status,
+          createdAt: data.created_at,
+          completedAt: data.completed_at,
+          audioUrl: data.audio_url,
+          videoUrl: data.video_url,
+          templateId: data.template_id,
+          duration: data.duration_seconds,
+        })
+      } catch (error) {
+        console.error('Failed to fetch generation:', error)
+        // Fallback to mock data
+        const mockGen = mockGenerations.find((g) => g.id === id) || mockGenerations[0]
+        setGeneration(mockGen)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchGeneration()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <div className="container py-8">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-text-secondary">Loading generation...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (!generation) {
     return (
@@ -60,7 +105,7 @@ export default function GenerationDetailsPage({ params }: { params: { id: string
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {generation.status === 'completed' ? (
+              {generation.status === 'completed' && (generation.audioUrl || generation.audio_url) ? (
                 <>
                   <div className="bg-muted rounded-lg p-6">
                     <div className="flex items-center justify-center mb-4">
@@ -111,7 +156,7 @@ export default function GenerationDetailsPage({ params }: { params: { id: string
           </Card>
 
           {/* Video Preview */}
-          {generation.videoUrl && (
+          {(generation.videoUrl || generation.video_url) && generation.status === 'completed' && (
             <Card>
               <CardHeader>
                 <CardTitle>Video Preview</CardTitle>
@@ -152,21 +197,21 @@ export default function GenerationDetailsPage({ params }: { params: { id: string
                 <Label className="text-xs text-text-secondary">Mantra</Label>
                 <div className="mt-1 p-3 bg-muted rounded-md">
                   <DevanagariText className="text-lg">
-                    {generation.mantra}
+                    {generation.mantra || generation.input_text || 'N/A'}
                   </DevanagariText>
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-text-secondary">Language</Label>
-                <p className="mt-1">{generation.language}</p>
+                <p className="mt-1">{generation.language || 'N/A'}</p>
               </div>
               <div>
                 <Label className="text-xs text-text-secondary">Voice Style</Label>
-                <p className="mt-1 capitalize">{generation.voiceStyle}</p>
+                <p className="mt-1 capitalize">{generation.voiceStyle || generation.voice_style || 'N/A'}</p>
               </div>
               <div>
                 <Label className="text-xs text-text-secondary">Voice</Label>
-                <p className="mt-1">{generation.voice}</p>
+                <p className="mt-1">{generation.voice || generation.selected_voice || 'N/A'}</p>
               </div>
               {generation.templateId && (
                 <div>
@@ -183,14 +228,16 @@ export default function GenerationDetailsPage({ params }: { params: { id: string
               <div>
                 <Label className="text-xs text-text-secondary">Created</Label>
                 <p className="mt-1">
-                  {formatDistanceToNow(new Date(generation.createdAt), { addSuffix: true })}
+                  {generation.createdAt 
+                    ? formatDistanceToNow(new Date(generation.createdAt), { addSuffix: true })
+                    : 'N/A'}
                 </p>
               </div>
-              {generation.completedAt && (
+              {(generation.completedAt || generation.completed_at) && (
                 <div>
                   <Label className="text-xs text-text-secondary">Completed</Label>
                   <p className="mt-1">
-                    {formatDistanceToNow(new Date(generation.completedAt), { addSuffix: true })}
+                    {formatDistanceToNow(new Date(generation.completedAt || generation.completed_at), { addSuffix: true })}
                   </p>
                 </div>
               )}

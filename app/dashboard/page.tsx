@@ -3,20 +3,52 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { Plus, Sparkles, Video, Clock, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { mockUser, mockGenerations } from '@/lib/mock-data'
+import { apiClient } from '@/lib/api-client'
 import { formatDistanceToNow } from 'date-fns'
 import { DevanagariText } from '@/components/DevanagariText'
 import { EmptyState } from '@/components/EmptyState'
 
 export default function DashboardPage() {
-  const user = mockUser
-  const generations = mockGenerations
+  const user = mockUser // Keep mock user for now, or fetch from API
+  const [generations, setGenerations] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchGenerations = async () => {
+      try {
+        const data = await apiClient.getGenerations(0, 10)
+        // Transform API response to match frontend format
+        const transformed = data.map((g: any) => ({
+          id: g.id.toString(),
+          mantra: g.input_text,
+          language: g.language,
+          voiceStyle: g.voice_style,
+          voice: g.selected_voice,
+          status: g.status,
+          createdAt: g.created_at,
+          completedAt: g.completed_at,
+          audioUrl: g.audio_url,
+          videoUrl: g.video_url,
+        }))
+        setGenerations(transformed)
+      } catch (error) {
+        console.error('Failed to fetch generations:', error)
+        // Fallback to mock data if API fails
+        setGenerations(mockGenerations)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchGenerations()
+  }, [])
 
   const stats = useMemo(() => {
     const completed = generations.filter(g => g.status === 'completed').length
@@ -144,7 +176,12 @@ export default function DashboardPage() {
           <CardDescription>Your latest devotional content creations</CardDescription>
         </CardHeader>
         <CardContent>
-          {recentGenerations.length > 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p className="text-text-secondary">Loading generations...</p>
+            </div>
+          ) : recentGenerations.length > 0 ? (
             <div className="space-y-4">
               {recentGenerations.map((generation) => (
                 <Link
